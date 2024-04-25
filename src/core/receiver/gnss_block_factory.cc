@@ -4,334 +4,625 @@
  * \author Carlos Aviles, 2010. carlos.avilesr(at)googlemail.com
  *         Luis Esteve, 2012. luis(at)epsilon-formacion.com
  *         Javier Arribas, 2011. jarribas(at)cttc.es
+ *         Marc Majoral, 2018. mmajoral(at)cttc.es
+ *         Carles Fernandez-Prades, 2014-2020. cfernandez(at)cttc.es
  *
  * This class encapsulates the complexity behind the instantiation
  * of GNSS blocks.
  *
- * -------------------------------------------------------------------------
  *
- * Copyright (C) 2010-2015  (see AUTHORS file for a list of contributors)
+ * -----------------------------------------------------------------------------
  *
- * GNSS-SDR is a software defined Global Navigation
- *          Satellite Systems receiver
- *
+ * GNSS-SDR is a Global Navigation Satellite System software-defined receiver.
  * This file is part of GNSS-SDR.
  *
- * GNSS-SDR is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Copyright (C) 2010-2022  (see AUTHORS file for a list of contributors)
+ * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * GNSS-SDR is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with GNSS-SDR. If not, see <http://www.gnu.org/licenses/>.
- *
- * -------------------------------------------------------------------------
+ * -----------------------------------------------------------------------------
  */
 
 
 #include "gnss_block_factory.h"
-#include <string>
-#include <sstream>
-#include <iostream>
-#include <boost/lexical_cast.hpp>
-#include <glog/logging.h>
-#include "configuration_interface.h"
-#include "gnss_block_interface.h"
-#include "pass_through.h"
-#include "file_signal_source.h"
-#include "nsr_file_signal_source.h"
-#include "null_sink_output_filter.h"
-#include "file_output_filter.h"
-#include "channel.h"
-
-#include "signal_conditioner.h"
+#include "acquisition_interface.h"
 #include "array_signal_conditioner.h"
-#include "ishort_to_complex.h"
-#include "ibyte_to_complex.h"
-#include "direct_resampler_conditioner.h"
-#include "fir_filter.h"
-#include "freq_xlating_fir_filter.h"
 #include "beamformer_filter.h"
-#include "gps_l1_ca_pcps_acquisition.h"
-#include "gps_l1_ca_pcps_multithread_acquisition.h"
-#include "gps_l1_ca_pcps_tong_acquisition.h"
-#include "gps_l1_ca_pcps_assisted_acquisition.h"
-#include "gps_l1_ca_pcps_acquisition_fine_doppler.h"
-#include "gps_l1_ca_pcps_quicksync_acquisition.h"
-#include "galileo_e1_pcps_ambiguous_acquisition.h"
+#include "beidou_b1i_dll_pll_tracking.h"
+#include "beidou_b1i_pcps_acquisition.h"
+#include "beidou_b1i_telemetry_decoder.h"
+#include "beidou_b3i_dll_pll_tracking.h"
+#include "beidou_b3i_pcps_acquisition.h"
+#include "beidou_b3i_telemetry_decoder.h"
+#include "byte_to_short.h"
+#include "channel.h"
+#include "configuration_interface.h"
+#include "direct_resampler_conditioner.h"
+#include "fifo_signal_source.h"
+#include "file_signal_source.h"
+#include "file_timestamp_signal_source.h"
+#include "fir_filter.h"
+#include "four_bit_cpx_file_signal_source.h"
+#include "freq_xlating_fir_filter.h"
+#include "galileo_e1_dll_pll_veml_tracking.h"
 #include "galileo_e1_pcps_8ms_ambiguous_acquisition.h"
-#include "galileo_e1_pcps_tong_ambiguous_acquisition.h"
+#include "galileo_e1_pcps_ambiguous_acquisition.h"
 #include "galileo_e1_pcps_cccwsr_ambiguous_acquisition.h"
 #include "galileo_e1_pcps_quicksync_ambiguous_acquisition.h"
-#include "galileo_e5a_noncoherent_iq_acquisition_caf.h"
-#include "gps_l1_ca_dll_pll_tracking.h"
-#include "gps_l1_ca_dll_pll_optim_tracking.h"
-#include "gps_l1_ca_dll_fll_pll_tracking.h"
-#include "gps_l1_ca_tcp_connector_tracking.h"
-#include "galileo_e1_dll_pll_veml_tracking.h"
-#include "galileo_volk_e1_dll_pll_veml_tracking.h"
+#include "galileo_e1_pcps_tong_ambiguous_acquisition.h"
 #include "galileo_e1_tcp_connector_tracking.h"
-#include "galileo_e5a_dll_pll_tracking.h"
-#include "gps_l1_ca_telemetry_decoder.h"
 #include "galileo_e1b_telemetry_decoder.h"
+#include "galileo_e5a_dll_pll_tracking.h"
+#include "galileo_e5a_noncoherent_iq_acquisition_caf.h"
+#include "galileo_e5a_pcps_acquisition.h"
 #include "galileo_e5a_telemetry_decoder.h"
-#include "sbas_l1_telemetry_decoder.h"
-#include "gps_l1_ca_observables.h"
-#include "galileo_e1_observables.h"
+#include "galileo_e5b_dll_pll_tracking.h"
+#include "galileo_e5b_pcps_acquisition.h"
+#include "galileo_e5b_telemetry_decoder.h"
+#include "galileo_e6_dll_pll_tracking.h"
+#include "galileo_e6_pcps_acquisition.h"
+#include "galileo_e6_telemetry_decoder.h"
+#include "glonass_l1_ca_dll_pll_c_aid_tracking.h"
+#include "glonass_l1_ca_dll_pll_tracking.h"
+#include "glonass_l1_ca_pcps_acquisition.h"
+#include "glonass_l1_ca_telemetry_decoder.h"
+#include "glonass_l2_ca_dll_pll_c_aid_tracking.h"
+#include "glonass_l2_ca_dll_pll_tracking.h"
+#include "glonass_l2_ca_pcps_acquisition.h"
+#include "glonass_l2_ca_telemetry_decoder.h"
+#include "gnss_block_interface.h"
+#include "gnss_sdr_make_unique.h"
+#include "gnss_sdr_string_literals.h"
+#include "gps_l1_ca_dll_pll_tracking.h"
+#include "gps_l1_ca_gaussian_tracking.h"
+#include "gps_l1_ca_kf_tracking.h"
+#include "gps_l1_ca_pcps_acquisition.h"
+#include "gps_l1_ca_pcps_acquisition_fine_doppler.h"
+#include "gps_l1_ca_pcps_assisted_acquisition.h"
+#include "gps_l1_ca_pcps_quicksync_acquisition.h"
+#include "gps_l1_ca_pcps_tong_acquisition.h"
+#include "gps_l1_ca_tcp_connector_tracking.h"
+#include "gps_l1_ca_telemetry_decoder.h"
+#include "gps_l2_m_dll_pll_tracking.h"
+#include "gps_l2_m_pcps_acquisition.h"
+#include "gps_l2c_telemetry_decoder.h"
+#include "gps_l5_dll_pll_tracking.h"
+#include "gps_l5_telemetry_decoder.h"
+#include "gps_l5i_pcps_acquisition.h"
 #include "hybrid_observables.h"
-#include "gps_l1_ca_pvt.h"
-#include "galileo_e1_pvt.h"
-#include "hybrid_pvt.h"
+#include "ibyte_to_cbyte.h"
+#include "ibyte_to_complex.h"
+#include "ibyte_to_cshort.h"
+#include "in_memory_configuration.h"
+#include "ishort_to_complex.h"
+#include "ishort_to_cshort.h"
+#include "labsat_signal_source.h"
+#include "mmse_resampler_conditioner.h"
+#include "multichannel_file_signal_source.h"
+#include "notch_filter.h"
+#include "notch_filter_lite.h"
+#include "nsr_file_signal_source.h"
+#include "pass_through.h"
+#include "pulse_blanking_filter.h"
+#include "rtklib_pvt.h"
+#include "rtl_tcp_signal_source.h"
+#include "sbas_l1_telemetry_decoder.h"
+#include "signal_conditioner.h"
+#include "spir_file_signal_source.h"
+#include "spir_gss6450_file_signal_source.h"
+#include "telemetry_decoder_interface.h"
+#include "tracking_interface.h"
+#include "two_bit_cpx_file_signal_source.h"
+#include "two_bit_packed_file_signal_source.h"
+#include <glog/logging.h>
+#include <exception>  // for exception
+#include <iostream>   // for cerr
+#include <utility>    // for move
 
-#if OPENCL_BLOCKS
-    #include "gps_l1_ca_pcps_opencl_acquisition.h"
+#if RAW_UDP
+#include "custom_udp_signal_source.h"
 #endif
 
-#if GN3S_DRIVER
-        #include "gn3s_signal_source.h"
+#if ENABLE_FPGA
+#include "galileo_e1_dll_pll_veml_tracking_fpga.h"
+#include "galileo_e1_pcps_ambiguous_acquisition_fpga.h"
+#include "galileo_e5a_dll_pll_tracking_fpga.h"
+#include "galileo_e5a_pcps_acquisition_fpga.h"
+#include "galileo_e5b_pcps_acquisition_fpga.h"
+#include "gps_l1_ca_dll_pll_tracking_fpga.h"
+#include "gps_l1_ca_pcps_acquisition_fpga.h"
+#include "gps_l2_m_dll_pll_tracking_fpga.h"
+#include "gps_l2_m_pcps_acquisition_fpga.h"
+#include "gps_l5_dll_pll_tracking_fpga.h"
+#include "gps_l5i_pcps_acquisition_fpga.h"
+#endif
+
+#if OPENCL_BLOCKS
+#include "gps_l1_ca_pcps_opencl_acquisition.h"
 #endif
 
 #if RAW_ARRAY_DRIVER
-        #include "raw_array_signal_source.h"
+#include "raw_array_signal_source.h"
 #endif
 
 #if OSMOSDR_DRIVER
-        #include "osmosdr_signal_source.h"
+#include "osmosdr_signal_source.h"
 #endif
 
 #if UHD_DRIVER
-        #include "uhd_signal_source.h"
+#include "uhd_signal_source.h"
 #endif
 
+#if PLUTOSDR_DRIVER
+#include "ad936x_custom_signal_source.h"
+#include "plutosdr_signal_source.h"
+#endif
 
-using google::LogMessage;
+#if FMCOMMS2_DRIVER
+#include "fmcomms2_signal_source.h"
+#endif
 
+#if AD9361_DRIVER
+#include "ad9361_fpga_signal_source.h"
+#endif
 
-GNSSBlockFactory::GNSSBlockFactory()
-{}
+#if LIMESDR_DRIVER
+#include "limesdr_signal_source.h"
+#endif
 
+#if FLEXIBAND_DRIVER
+#include "flexiband_signal_source.h"
+#endif
 
-GNSSBlockFactory::~GNSSBlockFactory()
-{}
+#if ZEROMQ_DRIVER
+#include "zmq_signal_source.h"
+#endif
 
+#if CUDA_GPU_ACCEL
+#include "gps_l1_ca_dll_pll_tracking_gpu.h"
+#endif
 
-std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetSignalSource(
-        std::shared_ptr<ConfigurationInterface> configuration, boost::shared_ptr<gr::msg_queue> queue)
+using namespace std::string_literals;
+
+namespace
 {
-    std::string default_implementation = "File_Signal_Source";
-    std::string implementation = configuration->property("SignalSource.implementation", default_implementation);
-    LOG(INFO) << "Getting SignalSource with implementation " << implementation;
-    return GetBlock(configuration, "SignalSource", implementation, 0, 1, queue);
+auto const impl_prop = ".implementation"s;  // "implementation" property; used nearly universally
+auto const item_prop = ".item_type"s;       // "item_type" property
+
+// unique_ptr dynamic cast from https://stackoverflow.com/a/26377517/9220132
+template <typename To, typename From>
+std::unique_ptr<To> dynamic_unique_cast(std::unique_ptr<From>&& p)
+{
+    if (To* cast = dynamic_cast<To*>(p.get()))
+        {
+            std::unique_ptr<To> result(cast);
+            p.release();  // NOLINT(bugprone-unused-return-value)
+            return result;
+        }
+    return std::unique_ptr<To>(nullptr);
 }
 
+
+auto findRole(ConfigurationInterface const* configuration, std::string const& base, int ID) -> std::string
+{
+    auto role = base + std::to_string(ID);
+
+    // Legacy behavior: pass -1 for unadorned property.
+    // Current behavior: if there is no "Tag0" use "Tag" instead
+    if (ID < 1)
+        {
+            auto stub = configuration->property(role + impl_prop, ""s);
+            if (stub.empty()) role = base;  // NOLINT  -- legacy format
+        }
+    return role;
+};
+}  // namespace
+
+
+std::unique_ptr<SignalSourceInterface> GNSSBlockFactory::GetSignalSource(
+    const ConfigurationInterface* configuration, Concurrent_Queue<pmt::pmt_t>* queue, int ID)
+{
+    auto role = findRole(configuration, "SignalSource"s, ID);
+    auto implementation = configuration->property(role + impl_prop, ""s);
+    LOG(INFO) << "Getting SignalSource " << role << " with implementation " << implementation;
+
+    return dynamic_unique_cast<SignalSourceInterface>(GetBlock(configuration, role, 0, 1, queue));
+}
 
 
 std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetSignalConditioner(
-        std::shared_ptr<ConfigurationInterface> configuration, boost::shared_ptr<gr::msg_queue> queue)
+    const ConfigurationInterface* configuration, int ID)
 {
-    std::string default_implementation = "Pass_Through";
-    std::string signal_conditioner = configuration->property(
-            "SignalConditioner.implementation", default_implementation);
-    std::string data_type_adapter;
-    std::string input_filter;
-    std::string resampler;
-    if(signal_conditioner.compare("Pass_Through") == 0)
-        {
-            data_type_adapter = "Pass_Through";
-            input_filter = "Pass_Through";
-            resampler = "Pass_Through";
-        }
-    else
-        {
-            data_type_adapter = configuration->property(
-                    "DataTypeAdapter.implementation", default_implementation);
-            input_filter = configuration->property(
-                    "InputFilter.implementation", default_implementation);
-            resampler = configuration->property(
-                    "Resampler.implementation", default_implementation);
-        }
+    const std::string empty_implementation;
 
-    LOG(INFO) << "Getting SignalConditioner with DataTypeAdapter implementation: "
-            << data_type_adapter << ", InputFilter implementation: "
-            << input_filter << ", and Resampler implementation: "
-            << resampler;
+    auto role_conditioner = findRole(configuration, "SignalConditioner"s, ID);
+    auto role_datatypeadapter = findRole(configuration, "DataTypeAdapter"s, ID);
+    auto role_inputfilter = findRole(configuration, "InputFilter"s, ID);
+    auto role_resampler = findRole(configuration, "Resampler"s, ID);
 
-    if(signal_conditioner.compare("Array_Signal_Conditioner") == 0)
+    DLOG(INFO) << "role: " << role_conditioner << " (ID=" << ID << ")";
+
+    const std::string signal_conditioner = configuration->property(role_conditioner + impl_prop, ""s);
+
+    const std::string data_type_adapter = configuration->property(role_datatypeadapter + impl_prop, ""s);
+    const std::string input_filter = configuration->property(role_inputfilter + impl_prop, ""s);
+    const std::string resampler = configuration->property(role_resampler + impl_prop, ""s);
+
+    if (signal_conditioner == "Pass_Through")
         {
-            //instantiate the array version
-            std::unique_ptr<GNSSBlockInterface> conditioner_(new ArraySignalConditioner(configuration.get(), GetBlock(configuration,
-                    "DataTypeAdapter", data_type_adapter, 1, 1, queue).release(), GetBlock(
-                            configuration,"InputFilter", input_filter, 1, 1, queue).release(),
-                            GetBlock(configuration,"Resampler", resampler, 1, 1, queue).release(),
-                            "SignalConditioner", "Signal_Conditioner", queue));
+            if (!data_type_adapter.empty() and (data_type_adapter != "Pass_Through"))
+                {
+                    LOG(WARNING) << "Configuration warning: if " << role_conditioner << impl_prop << "\n"
+                                 << "is set to Pass_Through, then the " << role_datatypeadapter << impl_prop << "\n"
+                                 << "parameter should be either not set or set to Pass_Through.\n"
+                                 << role_datatypeadapter << " configuration parameters will be ignored.";
+                }
+            if (!input_filter.empty() and (input_filter != "Pass_Through"))
+                {
+                    LOG(WARNING) << "Configuration warning: if " << role_conditioner << impl_prop << "\n"
+                                 << "is set to Pass_Through, then the " << role_inputfilter << impl_prop << "\n"
+                                 << "parameter should be either not set or set to Pass_Through.\n"
+                                 << role_inputfilter << " configuration parameters will be ignored.";
+                }
+            if (!resampler.empty() and (resampler != "Pass_Through"))
+                {
+                    LOG(WARNING) << "Configuration warning: if " << role_conditioner << impl_prop << "\n"
+                                 << "is set to Pass_Through, then the " << role_resampler << impl_prop << "\n"
+                                 << "parameter should be either not set or set to Pass_Through.\n"
+                                 << role_resampler << " configuration parameters will be ignored.";
+                }
+            LOG(INFO) << "Getting " << role_conditioner << " with Pass_Through implementation";
+
+            std::unique_ptr<GNSSBlockInterface> conditioner_ = std::make_unique<Pass_Through>(configuration, role_conditioner, 1, 1);
+
             return conditioner_;
         }
-    else
+
+    LOG(INFO) << "Getting " << role_conditioner << " with " << role_datatypeadapter << " implementation: "
+              << data_type_adapter << ", " << role_inputfilter << " implementation: "
+              << input_filter << ", and " << role_resampler << " implementation: "
+              << resampler;
+
+    if (signal_conditioner == "Array_Signal_Conditioner")
         {
-            //single-antenna version
-            std::unique_ptr<GNSSBlockInterface> conditioner_(new SignalConditioner(configuration.get(), GetBlock(configuration,
-                    "DataTypeAdapter", data_type_adapter, 1, 1, queue).release(), GetBlock(
-                            configuration,"InputFilter", input_filter, 1, 1, queue).release(),
-                            GetBlock(configuration,"Resampler", resampler, 1, 1, queue).release(),
-                            "SignalConditioner", "Signal_Conditioner", queue));
+            // instantiate the array version
+            std::unique_ptr<GNSSBlockInterface> conditioner_ = std::make_unique<ArraySignalConditioner>(
+                GetBlock(configuration, role_datatypeadapter, 1, 1),
+                GetBlock(configuration, role_inputfilter, 1, 1),
+                GetBlock(configuration, role_resampler, 1, 1),
+                role_conditioner);
             return conditioner_;
         }
+
+    if (signal_conditioner != "Signal_Conditioner")
+        {
+            std::cerr << "Error in configuration file: SignalConditioner.implementation=" << signal_conditioner << " is not a valid value.\n";
+            return nullptr;
+        }
+
+    // single-antenna version
+    std::unique_ptr<GNSSBlockInterface> conditioner_ = std::make_unique<SignalConditioner>(
+        GetBlock(configuration, role_datatypeadapter, 1, 1),
+        GetBlock(configuration, role_inputfilter, 1, 1),
+        GetBlock(configuration, role_resampler, 1, 1),
+        role_conditioner);
+    return conditioner_;
 }
 
 
-
-std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetObservables(std::shared_ptr<ConfigurationInterface> configuration,
-        boost::shared_ptr<gr::msg_queue> queue)
+std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetObservables(const ConfigurationInterface* configuration)
 {
-    std::string default_implementation = "GPS_L1_CA_Observables";
-    std::string implementation = configuration->property("Observables.implementation", default_implementation);
+    const std::string empty_implementation;
+    std::string implementation = configuration->property("Observables.implementation", empty_implementation);
     LOG(INFO) << "Getting Observables with implementation " << implementation;
-    unsigned int Galileo_channels = configuration->property("Channels_Galileo.count", 0);
-    unsigned int GPS_channels = configuration->property("Channels_GPS.count", 0);
-    return GetBlock(configuration, "Observables", implementation, Galileo_channels + GPS_channels, Galileo_channels + GPS_channels, queue);
+    if (implementation.find("_Observables") == std::string::npos)
+        {
+            std::cerr << "Error in configuration file: please set Observables.implementation=Hybrid_Observables\n";
+            return nullptr;
+        }
+    unsigned int Galileo_channels = configuration->property("Channels_1B.count", 0);
+    Galileo_channels += configuration->property("Channels_5X.count", 0);
+    Galileo_channels += configuration->property("Channels_7X.count", 0);
+    Galileo_channels += configuration->property("Channels_E6.count", 0);
+    unsigned int GPS_channels = configuration->property("Channels_1C.count", 0);
+    GPS_channels += configuration->property("Channels_2S.count", 0);
+    GPS_channels += configuration->property("Channels_L5.count", 0);
+    unsigned int Glonass_channels = configuration->property("Channels_1G.count", 0);
+    Glonass_channels += configuration->property("Channels_2G.count", 0);
+    unsigned int Beidou_channels = configuration->property("Channels_B1.count", 0);
+    Beidou_channels += configuration->property("Channels_B3.count", 0);
+    unsigned int extra_channels = 1;  // For monitor channel sample counter
+    return GetBlock(configuration, "Observables",
+        Galileo_channels +
+            GPS_channels +
+            Glonass_channels +
+            Beidou_channels +
+            extra_channels,
+        Galileo_channels +
+            GPS_channels +
+            Glonass_channels +
+            Beidou_channels);
 }
 
 
-
-std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetPVT(std::shared_ptr<ConfigurationInterface> configuration,
-        boost::shared_ptr<gr::msg_queue> queue)
+std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetPVT(const ConfigurationInterface* configuration)
 {
-    std::string default_implementation = "Pass_Through";
-    std::string implementation = configuration->property("PVT.implementation", default_implementation);
+    const std::string empty_implementation;
+    std::string implementation = configuration->property("PVT.implementation", empty_implementation);
     LOG(INFO) << "Getting PVT with implementation " << implementation;
-    unsigned int Galileo_channels = configuration->property("Channels_Galileo.count", 0);
-    unsigned int GPS_channels = configuration->property("Channels_GPS.count", 0);
-    return GetBlock(configuration, "PVT", implementation, Galileo_channels + GPS_channels, 1, queue);
+    if (implementation.find("_PVT") == std::string::npos)
+        {
+            std::cerr << "Error in configuration file: please set PVT.implementation=RTKLIB_PVT\n";
+            return nullptr;
+        }
+    unsigned int Galileo_channels = configuration->property("Channels_1B.count", 0);
+    Galileo_channels += configuration->property("Channels_5X.count", 0);
+    Galileo_channels += configuration->property("Channels_7X.count", 0);
+    Galileo_channels += configuration->property("Channels_E6.count", 0);
+    unsigned int GPS_channels = configuration->property("Channels_1C.count", 0);
+    GPS_channels += configuration->property("Channels_2S.count", 0);
+    GPS_channels += configuration->property("Channels_L5.count", 0);
+    unsigned int Glonass_channels = configuration->property("Channels_1G.count", 0);
+    Glonass_channels += configuration->property("Channels_2G.count", 0);
+    unsigned int Beidou_channels = configuration->property("Channels_B1.count", 0);
+    Beidou_channels += configuration->property("Channels_B3.count", 0);
+    return GetBlock(configuration, "PVT",
+        Galileo_channels + GPS_channels + Glonass_channels + Beidou_channels, 0);
 }
 
 
-
-std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetOutputFilter(std::shared_ptr<ConfigurationInterface> configuration,
-        boost::shared_ptr<gr::msg_queue> queue)
+// ************************** GNSS CHANNEL *************************************
+std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetChannel(
+    const ConfigurationInterface* configuration,
+    const std::string& signal,
+    int channel,
+    Concurrent_Queue<pmt::pmt_t>* queue)
 {
-    std::string default_implementation = "Null_Sink_Output_Filter";
-    std::string implementation = configuration->property("OutputFilter.implementation", default_implementation);
-    LOG(INFO) << "Getting OutputFilter with implementation " << implementation;
-    return GetBlock(configuration, "OutputFilter", implementation, 1, 0, queue);
-}
+    // "appendix" is added to the "role" with the aim of Acquisition, Tracking and Telemetry Decoder adapters
+    // can find their specific configurations for channels
+    std::string aux = configuration->property("Acquisition_" + signal + std::to_string(channel) + impl_prop, std::string("W"));
+    std::string appendix1;
+    if (aux != "W")
+        {
+            appendix1 = std::to_string(channel);
+        }
 
-//********* GPS CHANNEL *****************
-std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetChannel_GPS(
-        std::shared_ptr<ConfigurationInterface> configuration,
-        std::string acq, std::string trk, std::string tlm, int channel,
-        boost::shared_ptr<gr::msg_queue> queue)
-{
-    std::stringstream stream;
-    stream << channel;
-    std::string id = stream.str();
-    LOG(INFO) << "Instantiating Channel " << id << " with Acquisition Implementation: "
-              << acq << ", Tracking Implementation: " << trk  << ", Telemetry Decoder implementation: " << tlm;
+    aux = configuration->property("Tracking_" + signal + std::to_string(channel) + impl_prop, std::string("W"));
+    std::string appendix2;
+    if (aux != "W")
+        {
+            appendix2 = std::to_string(channel);
+        }
 
-    std::unique_ptr<GNSSBlockInterface> pass_through_ = GetBlock(configuration, "Channel", "Pass_Through", 1, 1, queue);
-    std::unique_ptr<AcquisitionInterface> acq_ = GetAcqBlock(configuration, "Acquisition_GPS", acq, 1, 1, queue);
-    std::unique_ptr<TrackingInterface> trk_ = GetTrkBlock(configuration, "Tracking_GPS", trk, 1, 1, queue);
-    std::unique_ptr<TelemetryDecoderInterface> tlm_ = GetTlmBlock(configuration, "TelemetryDecoder_GPS", tlm, 1, 1, queue);
+    aux = configuration->property("TelemetryDecoder_" + signal + std::to_string(channel) + impl_prop, std::string("W"));
+    std::string appendix3;
+    if (aux != "W")
+        {
+            appendix3 = std::to_string(channel);
+        }
 
-    std::unique_ptr<GNSSBlockInterface> channel_(new Channel(configuration.get(), channel, pass_through_.release(),
-            acq_.release(),
-            trk_.release(),
-            tlm_.release(),
-            "Channel", "GPS", queue));
+    // Automatically detect input data type
+    const std::string default_item_type("gr_complex");
+    std::string acq_item_type = configuration->property("Acquisition_" + signal + appendix1 + item_prop, default_item_type);
+    std::string trk_item_type = configuration->property("Tracking_" + signal + appendix2 + item_prop, default_item_type);
+    if (acq_item_type != trk_item_type)
+        {
+            std::cerr << "Configuration error: Acquisition and Tracking blocks must have the same input data type!\n";
+            return nullptr;
+        }
+
+    LOG(INFO) << "Instantiating Channel " << channel
+              << " with Acquisition Implementation: "
+              << configuration->property("Acquisition_" + signal + appendix1 + impl_prop, std::string("W"))
+              << ", Tracking Implementation: "
+              << configuration->property("Tracking_" + signal + appendix2 + impl_prop, std::string("W"))
+              << ", Telemetry Decoder implementation: "
+              << configuration->property("TelemetryDecoder_" + signal + appendix3 + impl_prop, std::string("W"));
+
+    std::unique_ptr<AcquisitionInterface> acq_ = GetAcqBlock(configuration, "Acquisition_" + signal + appendix1, 1, 0);
+    std::unique_ptr<TrackingInterface> trk_ = GetTrkBlock(configuration, "Tracking_" + signal + appendix2, 1, 1);
+    std::unique_ptr<TelemetryDecoderInterface> tlm_ = GetTlmBlock(configuration, "TelemetryDecoder_" + signal + appendix3, 1, 1);
+
+    if (acq_ == nullptr or trk_ == nullptr or tlm_ == nullptr)
+        {
+            return nullptr;
+        }
+    if (trk_->item_size() == 0)
+        {
+            std::cerr << "Configuration error: " << trk_->role() << item_prop << "=" << acq_item_type << " is not defined for implementation " << trk_->implementation() << '\n';
+            return nullptr;
+        }
+
+    std::unique_ptr<GNSSBlockInterface> channel_ = std::make_unique<Channel>(configuration, channel,
+        std::move(acq_),
+        std::move(trk_),
+        std::move(tlm_),
+        "Channel", signal, queue);
 
     return channel_;
 }
 
-
-//********* GALILEO CHANNEL *****************
-std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetChannel_Galileo(
-        std::shared_ptr<ConfigurationInterface> configuration,
-        std::string acq, std::string trk, std::string tlm, int channel,
-        boost::shared_ptr<gr::msg_queue> queue)
-{
-    std::stringstream stream;
-    stream << channel;
-    std::string id = stream.str();
-    LOG(INFO) << "Instantiating Channel " << id << " with Acquisition Implementation: "
-              << acq << ", Tracking Implementation: " << trk  << ", Telemetry Decoder implementation: " << tlm;
-
-    std::unique_ptr<GNSSBlockInterface> pass_through_ = GetBlock(configuration, "Channel", "Pass_Through", 1, 1, queue);
-    std::unique_ptr<AcquisitionInterface> acq_ = GetAcqBlock(configuration, "Acquisition_Galileo", acq, 1, 1, queue);
-    std::unique_ptr<TrackingInterface> trk_ = GetTrkBlock(configuration, "Tracking_Galileo", trk, 1, 1, queue);
-    std::unique_ptr<TelemetryDecoderInterface> tlm_ = GetTlmBlock(configuration, "TelemetryDecoder_Galileo", tlm, 1, 1, queue);
-
-    std::unique_ptr<GNSSBlockInterface> channel_(new Channel(configuration.get(), channel, pass_through_.release(),
-            acq_.release(),
-            trk_.release(),
-            tlm_.release(),
-            "Channel", "Galileo", queue));
-
-    return channel_;
-}
 
 std::unique_ptr<std::vector<std::unique_ptr<GNSSBlockInterface>>> GNSSBlockFactory::GetChannels(
-        std::shared_ptr<ConfigurationInterface> configuration, boost::shared_ptr<gr::msg_queue> queue)
+    const ConfigurationInterface* configuration,
+    Concurrent_Queue<pmt::pmt_t>* queue)
 {
-    std::string default_implementation = "Pass_Through";
-    unsigned int channel_count;
-    std::string tracking;
-    std::string telemetry_decoder;
-    std::string acquisition_implementation;
+    int channel_absolute_id = 0;
 
-    std::unique_ptr<std::vector<std::unique_ptr<GNSSBlockInterface>>> channels(new std::vector<std::unique_ptr<GNSSBlockInterface>>());
+    const unsigned int Channels_1C_count = configuration->property("Channels_1C.count", 0);
+    const unsigned int Channels_1B_count = configuration->property("Channels_1B.count", 0);
+    const unsigned int Channels_1G_count = configuration->property("Channels_1G.count", 0);
+    const unsigned int Channels_2G_count = configuration->property("Channels_2G.count", 0);
+    const unsigned int Channels_2S_count = configuration->property("Channels_2S.count", 0);
+    const unsigned int Channels_5X_count = configuration->property("Channels_5X.count", 0);
+    const unsigned int Channels_L5_count = configuration->property("Channels_L5.count", 0);
+    const unsigned int Channels_B1_count = configuration->property("Channels_B1.count", 0);
+    const unsigned int Channels_B3_count = configuration->property("Channels_B3.count", 0);
+    const unsigned int Channels_7X_count = configuration->property("Channels_7X.count", 0);
+    const unsigned int Channels_E6_count = configuration->property("Channels_E6.count", 0);
 
-    unsigned int channel_absolute_id=0;
+    const unsigned int total_channels = Channels_1C_count +
+                                        Channels_1B_count +
+                                        Channels_1G_count +
+                                        Channels_2S_count +
+                                        Channels_2G_count +
+                                        Channels_5X_count +
+                                        Channels_L5_count +
+                                        Channels_B1_count +
+                                        Channels_B3_count +
+                                        Channels_7X_count +
+                                        Channels_E6_count;
 
-    //**************** GPS CHANNELS **********************
-    channel_count= configuration->property("Channels_GPS.count", 0);
-
-    LOG(INFO) << "Getting " << channel_count << " GPS channels";
-
-    tracking = configuration->property("Tracking_GPS.implementation", default_implementation);
-    telemetry_decoder = configuration->property("TelemetryDecoder_GPS.implementation", default_implementation);
-    acquisition_implementation = configuration->property("Acquisition_GPS.implementation", default_implementation);
-
-    for (unsigned int i = 0; i < channel_count; i++)
+    auto channels = std::make_unique<std::vector<std::unique_ptr<GNSSBlockInterface>>>(total_channels);
+    try
         {
-            std::string acquisition_implementation_specific = configuration->property(
-                        "Acquisition_GPS" + boost::lexical_cast<std::string>(i) + ".implementation",
-                        default_implementation);
-            if(acquisition_implementation_specific.compare(default_implementation) != 0)
-            {
-                acquisition_implementation = acquisition_implementation_specific;
-            }
+            // **************** GPS L1 C/A CHANNELS ****************************
+            LOG(INFO) << "Getting " << Channels_1C_count << " GPS L1 C/A channels";
 
-            channels->push_back(std::move(GetChannel_GPS(configuration,
-                    acquisition_implementation, tracking, telemetry_decoder, channel_absolute_id, queue)));
-            channel_absolute_id++;
+            for (unsigned int i = 0; i < Channels_1C_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("1C"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GPS L2C (M) CHANNELS ***************************
+            LOG(INFO) << "Getting " << Channels_2S_count << " GPS L2C (M) channels";
+
+            for (unsigned int i = 0; i < Channels_2S_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("2S"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GPS L5 CHANNELS ********************************
+            LOG(INFO) << "Getting " << Channels_L5_count << " GPS L5 channels";
+
+            for (unsigned int i = 0; i < Channels_L5_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("L5"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GALILEO E1 B (I/NAV OS) CHANNELS ***************
+            LOG(INFO) << "Getting " << Channels_1B_count << " GALILEO E1 B (I/NAV OS) channels";
+
+            for (unsigned int i = 0; i < Channels_1B_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("1B"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GALILEO E5a I (F/NAV OS) CHANNELS **************
+            LOG(INFO) << "Getting " << Channels_5X_count << " GALILEO E5a I (F/NAV OS) channels";
+
+            for (unsigned int i = 0; i < Channels_5X_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("5X"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GALILEO E6 (B/C HAS) CHANNELS **************
+            LOG(INFO) << "Getting " << Channels_E6_count << " GALILEO E6 (B/C HAS) channels";
+
+            for (unsigned int i = 0; i < Channels_E6_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("E6"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GLONASS L1 C/A CHANNELS ************************
+            LOG(INFO) << "Getting " << Channels_1G_count << " GLONASS L1 C/A channels";
+
+            for (unsigned int i = 0; i < Channels_1G_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("1G"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GLONASS L2 C/A CHANNELS ************************
+            LOG(INFO) << "Getting " << Channels_2G_count << " GLONASS L2 C/A channels";
+
+            for (unsigned int i = 0; i < Channels_2G_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("2G"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** BEIDOU B1I CHANNELS ****************************
+            LOG(INFO) << "Getting " << Channels_B1_count << " BEIDOU B1I channels";
+
+            for (unsigned int i = 0; i < Channels_B1_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("B1"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** BEIDOU B3I CHANNELS ****************************
+            LOG(INFO) << "Getting " << Channels_B3_count << " BEIDOU B3I channels";
+
+            for (unsigned int i = 0; i < Channels_B3_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("B3"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+
+            // **************** GALILEO E5b I (I/NAV OS) CHANNELS **************
+            LOG(INFO) << "Getting " << Channels_7X_count << " GALILEO E5b I (I/NAV OS) channels";
+
+            for (unsigned int i = 0; i < Channels_7X_count; i++)
+                {
+                    // Store the channel into the vector of channels
+                    channels->at(channel_absolute_id) = GetChannel(configuration,
+                        std::string("7X"),
+                        channel_absolute_id,
+                        queue);
+                    channel_absolute_id++;
+                }
+        }
+    catch (const std::exception& e)
+        {
+            LOG(WARNING) << e.what();
         }
 
-    //**************** GALILEO CHANNELS **********************
-    channel_count= configuration->property("Channels_Galileo.count", 0);
-
-    LOG(INFO) << "Getting " << channel_count << " Galileo channels";
-
-    tracking = configuration->property("Tracking_Galileo.implementation", default_implementation);
-    telemetry_decoder = configuration->property("TelemetryDecoder_Galileo.implementation", default_implementation);
-    acquisition_implementation = configuration->property("Acquisition_Galileo.implementation", default_implementation);
-
-    for (unsigned int i = 0; i < channel_count; i++)
-        {
-            std::string acquisition_implementation_specific = configuration->property(
-                        "Acquisition_Galileo" + boost::lexical_cast<std::string>(i) + ".implementation",
-                        default_implementation);
-            if(acquisition_implementation_specific.compare(default_implementation) != 0)
-            {
-                acquisition_implementation = acquisition_implementation_specific;
-            }
-            channels->push_back(std::move(GetChannel_Galileo(configuration,
-                    acquisition_implementation, tracking, telemetry_decoder, channel_absolute_id, queue)));
-            channel_absolute_id++;
-        }
     return channels;
 }
 
@@ -346,350 +637,705 @@ std::unique_ptr<std::vector<std::unique_ptr<GNSSBlockInterface>>> GNSSBlockFacto
  * (see below)
  */
 std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetBlock(
-        std::shared_ptr<ConfigurationInterface> configuration,
-        std::string role,
-        std::string implementation, unsigned int in_streams,
-        unsigned int out_streams, boost::shared_ptr<gr::msg_queue> queue)
+    const ConfigurationInterface* configuration,
+    const std::string& role,
+    unsigned int in_streams,
+    unsigned int out_streams,
+    Concurrent_Queue<pmt::pmt_t>* queue)
 {
     std::unique_ptr<GNSSBlockInterface> block;
+    const std::string implementation = configuration->property(role + impl_prop, "Pass_Through"s);
 
-    //PASS THROUGH ----------------------------------------------------------------
-    if (implementation.compare("Pass_Through") == 0)
+    try
         {
-            std::unique_ptr<GNSSBlockInterface> block_(new Pass_Through(configuration.get(), role, in_streams, out_streams));
-            block = std::move(block_);
-        }
-
-    // SIGNAL SOURCES -------------------------------------------------------------
-    else if (implementation.compare("File_Signal_Source") == 0)
-        {
-            try
-            {
-                    std::unique_ptr<GNSSBlockInterface> block_(new FileSignalSource(configuration.get(), role, in_streams,
-                            out_streams, queue));
+            // PASS THROUGH ------------------------------------------------------------
+            if (implementation == "Pass_Through")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<Pass_Through>(configuration, role, in_streams, out_streams);
                     block = std::move(block_);
-            }
+                }
 
-            catch (const std::exception &e)
-            {
-                    std::cout << "GNSS-SDR program ended." << std::endl;
-                    exit(1);
-            }
-        }
-    else if (implementation.compare("Nsr_File_Signal_Source") == 0)
-        {
-            try
-            {
-                    std::unique_ptr<GNSSBlockInterface> block_(new NsrFileSignalSource(configuration.get(), role, in_streams,
-                            out_streams, queue));
+            // SIGNAL SOURCES ----------------------------------------------------------
+            else if (implementation == "Fifo_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FifoSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
                     block = std::move(block_);
-
-            }
-            catch (const std::exception &e)
-            {
-                    std::cout << "GNSS-SDR program ended." << std::endl;
-                    exit(1);
-            }
-        }
-#if UHD_DRIVER
-    else if (implementation.compare("UHD_Signal_Source") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new UhdSignalSource(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+                }
+            else if (implementation == "File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "File_Timestamp_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FileTimestampSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Multichannel_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<MultichannelFileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#if RAW_UDP
+            else if (implementation == "Custom_UDP_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<CustomUDPSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
 #endif
-#if GN3S_DRIVER
-    else if (implementation.compare("GN3S_Signal_Source") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new Gn3sSignalSource(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+            else if (implementation == "Nsr_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<NsrFileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Two_Bit_Cpx_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<TwoBitCpxFileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Four_Bit_Cpx_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FourBitCpxFileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Two_Bit_Packed_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<TwoBitPackedFileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Spir_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<SpirFileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Spir_GSS6450_File_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<SpirGSS6450FileSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "RtlTcp_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<RtlTcpSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Labsat_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<LabsatSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#if UHD_DRIVER
+            else if (implementation == "UHD_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<UhdSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
 #endif
 
 #if RAW_ARRAY_DRIVER
-    else if (implementation.compare("Raw_Array_Signal_Source") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new RawArraySignalSource(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+            else if (implementation == "Raw_Array_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<RawArraySignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
 #endif
 
 #if OSMOSDR_DRIVER
-    else if (implementation.compare("Osmosdr_Signal_Source") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new OsmosdrSignalSource(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+            else if (implementation == "Osmosdr_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<OsmosdrSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
 #endif
 
-    // DATA TYPE ADAPTER -----------------------------------------------------------
-    else if (implementation.compare("Ishort_To_Complex") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface>block_(new IshortToComplex(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Ibyte_To_Complex") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface>block_(new IbyteToComplex(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    // INPUT FILTER ----------------------------------------------------------------
-    else if (implementation.compare("Fir_Filter") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new FirFilter(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Freq_Xlating_Fir_Filter") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new FreqXlatingFirFilter(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Beamformer_Filter") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new BeamformerFilter(configuration.get(), role, in_streams,
-                    out_streams));
-            block = std::move(block_);
-        }
+#if LIMESDR_DRIVER
+            else if (implementation == "Limesdr_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface>
+                        block_ = std::make_unique<LimesdrSignalSource>(configuration, role, in_streams,
+                            out_streams, queue);
+                    block = std::move(block_);
+                }
+#endif
 
-    // RESAMPLER -------------------------------------------------------------------
-    else if (implementation.compare("Direct_Resampler") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new DirectResamplerConditioner(configuration.get(), role,
-                    in_streams, out_streams));
-            block = std::move(block_);
-        }
+#if PLUTOSDR_DRIVER
+            else if (implementation == "Plutosdr_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<PlutosdrSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Ad936x_Custom_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<Ad936xCustomSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#endif
 
-    // ACQUISITION BLOCKS ---------------------------------------------------------
-    else if (implementation.compare("GPS_L1_CA_PCPS_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPcpsAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GPS_L1_CA_PCPS_Assisted_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPcpsAssistedAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GPS_L1_CA_PCPS_Tong_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPcpsTongAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GPS_L1_CA_PCPS_Multithread_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPcpsMultithreadAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+#if FMCOMMS2_DRIVER
+            else if (implementation == "Fmcomms2_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<Fmcomms2SignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#endif
 
+#if FLEXIBAND_DRIVER
+            else if (implementation == "Flexiband_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FlexibandSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#endif
+
+#if AD9361_DRIVER
+            // The AD9361_DRIVER Driver must be instantiated last. In this way, when using the FPGA, and when using the GNSS receiver
+            // in post-processing mode, the receiver is configured and ready when the DMA starts sending samples to the receiver.
+            else if (implementation == "Ad9361_Fpga_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<Ad9361FpgaSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#endif
+
+#if ZEROMQ_DRIVER
+            else if (implementation == "ZMQ_Signal_Source")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<ZmqSignalSource>(configuration, role, in_streams,
+                        out_streams, queue);
+                    block = std::move(block_);
+                }
+#endif
+
+
+            // DATA TYPE ADAPTER -----------------------------------------------------------
+            else if (implementation == "Byte_To_Short")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<ByteToShort>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Ibyte_To_Cbyte")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<IbyteToCbyte>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Ibyte_To_Cshort")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<IbyteToCshort>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Ibyte_To_Complex")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<IbyteToComplex>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Ishort_To_Cshort")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<IshortToCshort>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Ishort_To_Complex")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<IshortToComplex>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+
+            // INPUT FILTER ------------------------------------------------------------
+            else if (implementation == "Fir_Filter")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FirFilter>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Freq_Xlating_Fir_Filter")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<FreqXlatingFirFilter>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Beamformer_Filter")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<BeamformerFilter>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Pulse_Blanking_Filter")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<PulseBlankingFilter>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Notch_Filter")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<NotchFilter>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Notch_Filter_Lite")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<NotchFilterLite>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+
+            // RESAMPLER ---------------------------------------------------------------
+            else if (implementation == "Direct_Resampler")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<DirectResamplerConditioner>(configuration, role,
+                        in_streams, out_streams);
+                    block = std::move(block_);
+                }
+
+            else if ((implementation == "Fractional_Resampler") || (implementation == "Mmse_Resampler"))
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<MmseResamplerConditioner>(configuration, role,
+                        in_streams, out_streams);
+                    block = std::move(block_);
+                }
+
+            // ACQUISITION BLOCKS ------------------------------------------------------
+            else if (implementation == "GPS_L1_CA_PCPS_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_PCPS_Assisted_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsAssistedAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_PCPS_Tong_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsTongAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_PCPS_Acquisition_Fine_Doppler")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsAcquisitionFineDoppler>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_PCPS_QuickSync_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsQuickSyncAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L2_M_PCPS_Acquisition")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL2MPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L5i_PCPS_Acquisition")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL5iPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_PCPS_Ambiguous_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1PcpsAmbiguousAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_PCPS_8ms_Ambiguous_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1Pcps8msAmbiguousAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_PCPS_Tong_Ambiguous_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1PcpsTongAmbiguousAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_PCPS_CCCWSR_Ambiguous_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1PcpsCccwsrAmbiguousAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_PCPS_QuickSync_Ambiguous_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1PcpsQuickSyncAmbiguousAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5a_Noncoherent_IQ_Acquisition_CAF")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5aNoncoherentIQAcquisitionCaf>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5a_Pcps_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5aPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5b_PCPS_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5bPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E6_PCPS_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE6PcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L1_CA_PCPS_Acquisition")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GlonassL1CaPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L2_CA_PCPS_Acquisition")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GlonassL2CaPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "BEIDOU_B1I_PCPS_Acquisition")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<BeidouB1iPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "BEIDOU_B3I_PCPS_Acquisition")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<BeidouB3iPcpsAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
 #if OPENCL_BLOCKS
-    else if (implementation.compare("GPS_L1_CA_PCPS_OpenCl_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPcpsOpenClAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+            else if (implementation == "GPS_L1_CA_PCPS_OpenCl_Acquisition")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsOpenClAcquisition>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+#endif
+#if ENABLE_FPGA
+            else if (implementation == "GPS_L1_CA_PCPS_Acquisition_Fpga")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaPcpsAcquisitionFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_PCPS_Ambiguous_Acquisition_Fpga")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1PcpsAmbiguousAcquisitionFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L2_M_PCPS_Acquisition_Fpga")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL2MPcpsAcquisitionFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L5i_PCPS_Acquisition_Fpga")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL5iPcpsAcquisitionFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5a_Pcps_Acquisition_Fpga")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5aPcpsAcquisitionFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5b_PCPS_Acquisition_FPGA")
+                {
+                    std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE5bPcpsAcquisitionFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
 #endif
 
-    else if (implementation.compare("GPS_L1_CA_PCPS_Acquisition_Fine_Doppler") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPcpsAcquisitionFineDoppler(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GPS_L1_CA_PCPS_QuickSync_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_( new GpsL1CaPcpsQuickSyncAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1PcpsAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_8ms_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1Pcps8msAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_Tong_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1PcpsTongAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_CCCWSR_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1PcpsCccwsrAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E5a_Noncoherent_IQ_Acquisition_CAF") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE5aNoncoherentIQAcquisitionCaf(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+            // TRACKING BLOCKS ---------------------------------------------------------
+            else if (implementation == "GPS_L1_CA_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_Gaussian_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaGaussianTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_KF_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaKfTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L1_CA_TCP_CONNECTOR_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaTcpConnectorTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L2_M_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL2MDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if ((implementation == "GPS_L5i_DLL_PLL_Tracking") or (implementation == "GPS_L5_DLL_PLL_Tracking"))
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL5DllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_DLL_PLL_VEML_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1DllPllVemlTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_TCP_CONNECTOR_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1TcpConnectorTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5a_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5aDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5b_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5bDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E6_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE6DllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L1_CA_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GlonassL1CaDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L1_CA_DLL_PLL_C_Aid_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GlonassL1CaDllPllCAidTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L2_CA_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GlonassL2CaDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L2_CA_DLL_PLL_C_Aid_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GlonassL2CaDllPllCAidTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "BEIDOU_B1I_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<BeidouB1iDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "BEIDOU_B3I_DLL_PLL_Tracking")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<BeidouB3iDllPllTracking>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+#if CUDA_GPU_ACCEL
+            else if (implementation == "GPS_L1_CA_DLL_PLL_Tracking_GPU")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaDllPllTrackingGPU>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+#endif
+#if ENABLE_FPGA
+            else if (implementation == "GPS_L1_CA_DLL_PLL_Tracking_Fpga")
+                {
+                    std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaDllPllTrackingFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1_DLL_PLL_VEML_Tracking_Fpga")
+                {
+                    std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE1DllPllVemlTrackingFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L2_M_DLL_PLL_Tracking_Fpga")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL2MDllPllTrackingFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if ((implementation == "GPS_L5i_DLL_PLL_Tracking_Fpga") or (implementation == "GPS_L5_DLL_PLL_Tracking_Fpga"))
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL5DllPllTrackingFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5a_DLL_PLL_Tracking_Fpga")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5aDllPllTrackingFpga>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+#endif
 
+            // TELEMETRY DECODERS ------------------------------------------------------
+            else if (implementation == "GPS_L1_CA_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL1CaTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L2C_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL2CTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GPS_L5_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GpsL5TelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "SBAS_L1_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<SbasL1TelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E1B_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE1BTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5a_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5aTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E5b_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE5bTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "Galileo_E6_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GalileoE6TelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L1_CA_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GlonassL1CaTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "GLONASS_L2_CA_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<GlonassL2CaTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "BEIDOU_B1I_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<BeidouB1iTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
+            else if (implementation == "BEIDOU_B3I_Telemetry_Decoder")
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<BeidouB3iTelemetryDecoder>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
 
-    else if (implementation.compare("Galileo_E1_PCPS_QuickSync_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_( new GalileoE1PcpsQuickSyncAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
+            // OBSERVABLES -------------------------------------------------------------
+            else if ((implementation == "Hybrid_Observables") || (implementation == "GPS_L1_CA_Observables") || (implementation == "GPS_L2C_Observables") ||
+                     (implementation == "Galileo_E5A_Observables"))
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<HybridObservables>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
 
+            // PVT ---------------------------------------------------------------------
+            else if ((implementation == "RTKLIB_PVT") || (implementation == "GPS_L1_CA_PVT") || (implementation == "Galileo_E1_PVT") || (implementation == "Hybrid_PVT"))
+                {
+                    std::unique_ptr<GNSSBlockInterface> block_ = std::make_unique<Rtklib_Pvt>(configuration, role, in_streams,
+                        out_streams);
+                    block = std::move(block_);
+                }
 
-
-
-    // TRACKING BLOCKS -------------------------------------------------------------
-    else if (implementation.compare("GPS_L1_CA_DLL_PLL_Tracking") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaDllPllTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
+            else
+                {
+                    std::cerr << "Configuration error in " << role << " block: implementation " + implementation + " is not available.\n"s;
+                    block = nullptr;
+                }
         }
-    else if (implementation.compare("GPS_L1_CA_DLL_PLL_Optim_Tracking") == 0)
+    catch (const std::exception& e)
         {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaDllPllOptimTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
+            LOG(INFO) << "Exception raised while instantiating the block: " << e.what();
+            std::cout << "Configuration error in " << role << " block, implementation " << (implementation == "Wrong"s ? "not defined."s : implementation) << ". The error was:\n"
+                      << e.what() << '\n';
+            std::cout << "GNSS-SDR program ended.\n";
+            exit(1);
         }
-    else if (implementation.compare("GPS_L1_CA_DLL_FLL_PLL_Tracking") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaDllFllPllTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GPS_L1_CA_TCP_CONNECTOR_Tracking") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaTcpConnectorTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_DLL_PLL_VEML_Tracking") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1DllPllVemlTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_volk_E1_DLL_PLL_VEML_Tracking") == 0)
-    {
-        std::unique_ptr<GNSSBlockInterface> block_(new GalileoVolkE1DllPllVemlTracking(configuration.get(), role, in_streams,
-                                                                                   out_streams, queue));
-        block = std::move(block_);
-    }
-    else if (implementation.compare("Galileo_E1_TCP_CONNECTOR_Tracking") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1TcpConnectorTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E5a_DLL_PLL_Tracking") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE5aDllPllTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-
-    // TELEMETRY DECODERS ----------------------------------------------------------
-    else if (implementation.compare("GPS_L1_CA_Telemetry_Decoder") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaTelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1B_Telemetry_Decoder") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1BTelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("SBAS_L1_Telemetry_Decoder") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new SbasL1TelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E5a_Telemetry_Decoder") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE5aTelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-
-    // OBSERVABLES -----------------------------------------------------------------
-    else if (implementation.compare("GPS_L1_CA_Observables") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaObservables(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-
-    else if (implementation.compare("Galileo_E1B_Observables") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1Observables(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Hybrid_Observables") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new HybridObservables(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    // PVT -------------------------------------------------------------------------
-    else if (implementation.compare("GPS_L1_CA_PVT") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GpsL1CaPvt(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GALILEO_E1_PVT") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new GalileoE1Pvt(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Hybrid_PVT") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new HybridPvt(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    // OUTPUT FILTERS --------------------------------------------------------------
-    else if (implementation.compare("Null_Sink_Output_Filter") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new NullSinkOutputFilter(configuration.get(), role, in_streams,
-                    out_streams));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("File_Output_Filter") == 0)
-        {
-            std::unique_ptr<GNSSBlockInterface> block_(new FileOutputFilter(configuration.get(), role, in_streams,
-                    out_streams));
-            block = std::move(block_);
-        }
-    else
-        {
-            // Log fatal. This causes execution to stop.
-            LOG(ERROR) << role<<"."<<implementation << ": Undefined implementation for block";
-        }
-    return std::move(block);
+    return block;
 }
 
 
@@ -700,217 +1346,442 @@ std::unique_ptr<GNSSBlockInterface> GNSSBlockFactory::GetBlock(
  * Not very elegant, Acq, Trk and Tlm blocks must be added here, too.
  * To be improved!
  */
-
 std::unique_ptr<AcquisitionInterface> GNSSBlockFactory::GetAcqBlock(
-        std::shared_ptr<ConfigurationInterface> configuration,
-        std::string role,
-        std::string implementation, unsigned int in_streams,
-        unsigned int out_streams, boost::shared_ptr<gr::msg_queue> queue)
+    const ConfigurationInterface* configuration,
+    const std::string& role,
+    unsigned int in_streams,
+    unsigned int out_streams)
 {
     std::unique_ptr<AcquisitionInterface> block;
-    // ACQUISITION BLOCKS ---------------------------------------------------------
-    if (implementation.compare("GPS_L1_CA_PCPS_Acquisition") == 0)
+    const std::string implementation = configuration->property(role + impl_prop, "Wrong"s);
+
+    // ACQUISITION BLOCKS ------------------------------------------------------
+    if (implementation == "GPS_L1_CA_PCPS_Acquisition")
         {
-            std::unique_ptr<AcquisitionInterface> block_(new GpsL1CaPcpsAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("GPS_L1_CA_PCPS_Assisted_Acquisition") == 0)
+    else if (implementation == "GPS_L1_CA_PCPS_Assisted_Acquisition")
         {
-            std::unique_ptr<AcquisitionInterface> block_(new GpsL1CaPcpsAssistedAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsAssistedAcquisition>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("GPS_L1_CA_PCPS_Tong_Acquisition") == 0)
+    else if (implementation == "GPS_L1_CA_PCPS_Tong_Acquisition")
         {
-            std::unique_ptr<AcquisitionInterface> block_(new GpsL1CaPcpsTongAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsTongAcquisition>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("GPS_L1_CA_PCPS_Multithread_Acquisition") == 0)
+    else if (implementation == "GPS_L1_CA_PCPS_Acquisition_Fine_Doppler")
         {
-            std::unique_ptr<AcquisitionInterface> block_(new GpsL1CaPcpsMultithreadAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsAcquisitionFineDoppler>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L1_CA_PCPS_QuickSync_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsQuickSyncAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L2_M_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL2MPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L5i_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL5iPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E1_PCPS_Ambiguous_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE1PcpsAmbiguousAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E1_PCPS_8ms_Ambiguous_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE1Pcps8msAmbiguousAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E1_PCPS_Tong_Ambiguous_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE1PcpsTongAmbiguousAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E1_PCPS_CCCWSR_Ambiguous_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE1PcpsCccwsrAmbiguousAcquisition>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
 
-#if OPENCL_BLOCKS
-    else if (implementation.compare("GPS_L1_CA_PCPS_OpenCl_Acquisition") == 0)
+    else if (implementation == "Galileo_E1_PCPS_QuickSync_Ambiguous_Acquisition")
         {
-            std::unique_ptr<AcquisitionInterface> block_(new GpsL1CaPcpsOpenClAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE1PcpsQuickSyncAmbiguousAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E5a_Noncoherent_IQ_Acquisition_CAF")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE5aNoncoherentIQAcquisitionCaf>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E5a_Pcps_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE5aPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E5b_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE5bPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E6_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE6PcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L1_CA_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GlonassL1CaPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L2_CA_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GlonassL2CaPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "BEIDOU_B1I_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<BeidouB1iPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "BEIDOU_B3I_PCPS_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<BeidouB3iPcpsAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+#if OPENCL_BLOCKS
+    else if (implementation == "GPS_L1_CA_PCPS_OpenCl_Acquisition")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsOpenClAcquisition>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+#endif
+#if ENABLE_FPGA
+    else if (implementation == "GPS_L1_CA_PCPS_Acquisition_Fpga")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL1CaPcpsAcquisitionFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E1_PCPS_Ambiguous_Acquisition_Fpga")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE1PcpsAmbiguousAcquisitionFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L2_M_PCPS_Acquisition_Fpga")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL2MPcpsAcquisitionFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L5i_PCPS_Acquisition_Fpga")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GpsL5iPcpsAcquisitionFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E5a_Pcps_Acquisition_Fpga")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE5aPcpsAcquisitionFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E5b_PCPS_Acquisition_FPGA")
+        {
+            std::unique_ptr<AcquisitionInterface> block_ = std::make_unique<GalileoE5bPcpsAcquisitionFpga>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
 #endif
 
-    else if (implementation.compare("GPS_L1_CA_PCPS_Acquisition_Fine_Doppler") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_(new GpsL1CaPcpsAcquisitionFineDoppler(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("GPS_L1_CA_PCPS_QuickSync_Acquisition") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_( new GpsL1CaPcpsQuickSyncAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_(new GalileoE1PcpsAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_8ms_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_(new GalileoE1Pcps8msAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_Tong_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_(new GalileoE1PcpsTongAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E1_PCPS_CCCWSR_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_(new GalileoE1PcpsCccwsrAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-
-    else if (implementation.compare("Galileo_E1_PCPS_QuickSync_Ambiguous_Acquisition") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_( new GalileoE1PcpsQuickSyncAmbiguousAcquisition(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
-    else if (implementation.compare("Galileo_E5a_Noncoherent_IQ_Acquisition_CAF") == 0)
-        {
-            std::unique_ptr<AcquisitionInterface> block_(new GalileoE5aNoncoherentIQAcquisitionCaf(configuration.get(), role, in_streams,
-                    out_streams, queue));
-            block = std::move(block_);
-        }
     else
         {
-            // Log fatal. This causes execution to stop.
-            LOG(ERROR) << role<<"."<<implementation << ": Undefined implementation for block";
+            std::cerr << "Configuration error in " << role << " block: implementation " << (implementation == "Wrong"s ? "not defined."s : implementation + " not available."s) << '\n';
+            block = nullptr;
         }
-    return std::move(block);
+    return block;
 }
 
 
 std::unique_ptr<TrackingInterface> GNSSBlockFactory::GetTrkBlock(
-        std::shared_ptr<ConfigurationInterface> configuration,
-        std::string role,
-        std::string implementation, unsigned int in_streams,
-        unsigned int out_streams, boost::shared_ptr<gr::msg_queue> queue)
+    const ConfigurationInterface* configuration,
+    const std::string& role,
+    unsigned int in_streams,
+    unsigned int out_streams)
 {
     std::unique_ptr<TrackingInterface> block;
+    const std::string implementation = configuration->property(role + impl_prop, "Wrong"s);
 
-    // TRACKING BLOCKS -------------------------------------------------------------
-    if (implementation.compare("GPS_L1_CA_DLL_PLL_Tracking") == 0)
+    // TRACKING BLOCKS ---------------------------------------------------------
+    if (implementation == "GPS_L1_CA_DLL_PLL_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GpsL1CaDllPllTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaDllPllTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("GPS_L1_CA_DLL_PLL_Optim_Tracking") == 0)
+    else if (implementation == "GPS_L1_CA_Gaussian_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GpsL1CaDllPllOptimTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaGaussianTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("GPS_L1_CA_DLL_FLL_PLL_Tracking") == 0)
+    else if (implementation == "GPS_L1_CA_KF_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GpsL1CaDllFllPllTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaKfTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("GPS_L1_CA_TCP_CONNECTOR_Tracking") == 0)
+    else if (implementation == "GPS_L1_CA_TCP_CONNECTOR_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GpsL1CaTcpConnectorTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaTcpConnectorTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("Galileo_E1_DLL_PLL_VEML_Tracking") == 0)
+    else if (implementation == "Galileo_E1_DLL_PLL_VEML_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GalileoE1DllPllVemlTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE1DllPllVemlTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("Galileo_Volk_E1_DLL_PLL_VEML_Tracking") == 0)
-    {
-        std::unique_ptr<TrackingInterface> block_(new GalileoVolkE1DllPllVemlTracking(configuration.get(), role, in_streams,
-                                                                                  out_streams, queue));
-        block = std::move(block_);
-    }
-    else if (implementation.compare("Galileo_E1_TCP_CONNECTOR_Tracking") == 0)
+    else if (implementation == "Galileo_E1_TCP_CONNECTOR_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GalileoE1TcpConnectorTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE1TcpConnectorTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("Galileo_E5a_DLL_PLL_Tracking") == 0)
+    else if (implementation == "Galileo_E5a_DLL_PLL_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GalileoE5aDllPllTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE5aDllPllTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("Galileo_volk_E1_DLL_PLL_VEML_Tracking") == 0)
+    else if (implementation == "Galileo_E5b_DLL_PLL_Tracking")
         {
-            std::unique_ptr<TrackingInterface> block_(new GalileoVolkE1DllPllVemlTracking(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE5bDllPllTracking>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-
+    else if (implementation == "Galileo_E6_DLL_PLL_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE6DllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L2_M_DLL_PLL_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL2MDllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if ((implementation == "GPS_L5i_DLL_PLL_Tracking") or (implementation == "GPS_L5_DLL_PLL_Tracking"))
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL5DllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L1_CA_DLL_PLL_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GlonassL1CaDllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L1_CA_DLL_PLL_C_Aid_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GlonassL1CaDllPllCAidTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L2_CA_DLL_PLL_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GlonassL2CaDllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L2_CA_DLL_PLL_C_Aid_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GlonassL2CaDllPllCAidTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "BEIDOU_B1I_DLL_PLL_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<BeidouB1iDllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "BEIDOU_B3I_DLL_PLL_Tracking")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<BeidouB3iDllPllTracking>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+#if CUDA_GPU_ACCEL
+    else if (implementation == "GPS_L1_CA_DLL_PLL_Tracking_GPU")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaDllPllTrackingGPU>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+#endif
+#if ENABLE_FPGA
+    else if (implementation == "GPS_L1_CA_DLL_PLL_Tracking_Fpga")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL1CaDllPllTrackingFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E1_DLL_PLL_VEML_Tracking_Fpga")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE1DllPllVemlTrackingFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L2_M_DLL_PLL_Tracking_Fpga")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL2MDllPllTrackingFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if ((implementation == "GPS_L5i_DLL_PLL_Tracking_Fpga") or (implementation == "GPS_L5_DLL_PLL_Tracking_Fpga"))
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GpsL5DllPllTrackingFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E5a_DLL_PLL_Tracking_Fpga")
+        {
+            std::unique_ptr<TrackingInterface> block_ = std::make_unique<GalileoE5aDllPllTrackingFpga>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+#endif
     else
         {
-            // Log fatal. This causes execution to stop.
-            LOG(ERROR) << role<<"."<<implementation << ": Undefined implementation for block";
+            std::cerr << "Configuration error in " << role << " block: implementation " << (implementation == "Wrong"s ? "not defined."s : implementation + " not available."s) << '\n';
+            block = nullptr;
         }
-    return std::move(block);
+    return block;
 }
 
 
 std::unique_ptr<TelemetryDecoderInterface> GNSSBlockFactory::GetTlmBlock(
-        std::shared_ptr<ConfigurationInterface> configuration,
-        std::string role,
-        std::string implementation, unsigned int in_streams,
-        unsigned int out_streams, boost::shared_ptr<gr::msg_queue> queue)
+    const ConfigurationInterface* configuration,
+    const std::string& role,
+    unsigned int in_streams,
+    unsigned int out_streams)
 {
     std::unique_ptr<TelemetryDecoderInterface> block;
+    const std::string implementation = configuration->property(role + impl_prop, "Wrong"s);
 
-    // TELEMETRY DECODERS ----------------------------------------------------------
-    if (implementation.compare("GPS_L1_CA_Telemetry_Decoder") == 0)
+    // TELEMETRY DECODERS ------------------------------------------------------
+    if (implementation == "GPS_L1_CA_Telemetry_Decoder")
         {
-            std::unique_ptr<TelemetryDecoderInterface> block_(new GpsL1CaTelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GpsL1CaTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("Galileo_E1B_Telemetry_Decoder") == 0)
+    else if (implementation == "Galileo_E1B_Telemetry_Decoder")
         {
-            std::unique_ptr<TelemetryDecoderInterface> block_(new GalileoE1BTelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GalileoE1BTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("SBAS_L1_Telemetry_Decoder") == 0)
+    else if (implementation == "SBAS_L1_Telemetry_Decoder")
         {
-            std::unique_ptr<TelemetryDecoderInterface> block_(new SbasL1TelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<SbasL1TelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
-    else if (implementation.compare("Galileo_E5a_Telemetry_Decoder") == 0)
+    else if (implementation == "Galileo_E5a_Telemetry_Decoder")
         {
-            std::unique_ptr<TelemetryDecoderInterface> block_(new GalileoE5aTelemetryDecoder(configuration.get(), role, in_streams,
-                    out_streams, queue));
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GalileoE5aTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
             block = std::move(block_);
         }
+    else if (implementation == "Galileo_E5b_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GalileoE5bTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "Galileo_E6_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GalileoE6TelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L2C_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GpsL2CTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L1_CA_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GlonassL1CaTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GLONASS_L2_CA_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GlonassL2CaTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "GPS_L5_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<GpsL5TelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "BEIDOU_B1I_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<BeidouB1iTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+    else if (implementation == "BEIDOU_B3I_Telemetry_Decoder")
+        {
+            std::unique_ptr<TelemetryDecoderInterface> block_ = std::make_unique<BeidouB3iTelemetryDecoder>(configuration, role, in_streams,
+                out_streams);
+            block = std::move(block_);
+        }
+
     else
         {
-            // Log fatal. This causes execution to stop.
-            LOG(ERROR) << role<<"."<<implementation << ": Undefined implementation for block";
+            std::cerr << "Configuration error in " << role << " block: implementation " << (implementation == "Wrong"s ? "not defined."s : implementation + " not available."s) << '\n';
+            block = nullptr;
         }
-    return std::move(block);
+
+    return block;
 }
